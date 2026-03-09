@@ -50,6 +50,11 @@ function toggleTaskComplete(taskId) {
     updateTaskCount();
 }
 
+function openImageModal(imageSrc) {
+    // Opsi 1: Buka di tab baru (lebih simple)
+    window.open(imageSrc, '_blank');
+}
+
 // ========================================
 // MODAL DETAIL SYSTEM
 // ========================================
@@ -62,7 +67,7 @@ function openTaskDetail(taskId) {
     
     // Ambil data dari kartu tugas
     const title = taskCard.querySelector('h3').textContent;
-    const description = taskCard.querySelector('.task-description').textContent;
+    const description = taskCard.querySelector('.task-description').innerHTML;
     const dateMeta = taskCard.querySelector('.task-meta').innerHTML;
     const hiddenData = taskCard.querySelector('.task-hidden-data .task-full-info');
     

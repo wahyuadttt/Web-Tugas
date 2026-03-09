@@ -1,6 +1,7 @@
 <?php
 session_start();
-include 'koneksi.php';
+include '../koneksi.php';
+
 
 if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
     header('Location: login.php');
@@ -10,54 +11,22 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
 $message = '';
 $error = '';
 
-// Ambil ID dari URL
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-
-// Ambil data tugas berdasarkan ID
-$sql = "SELECT * FROM tugas WHERE id = ?";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $id);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows > 0) {
-    $tugas = $result->fetch_assoc();
-} else {
-    echo "Data tidak ditemukan";
-    exit;
-}
-$stmt->close();
-
-// Proses update data
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $judul = $_POST['judul'];
     $deadline_date = $_POST['deadline_date'];
     $deadline_time = $_POST['deadline_time'];
-    $catatan = $_POST['catatan'];
+    $catatan = $_POST['catatan']; // Line breaks akan otomatis tersimpan dari textarea
     $kategori = $_POST['kategori'];
     
-    // Ambil gambar lama yang masih dipertahankan
-    $existingImages = isset($_POST['existing_images']) ? $_POST['existing_images'] : [];
-    $uploadedFiles = $existingImages;
-    $uploadDir = "uploads/";
+    $uploadedFiles = [];
+    $uploadDir = "../uploads/";
     
     // Buat folder uploads jika belum ada
     if (!is_dir($uploadDir)) {
         mkdir($uploadDir, 0777, true);
     }
     
-    // Hapus gambar yang tidak dicentang
-    if (!empty($tugas['gambar'])) {
-        $oldImages = explode(',', $tugas['gambar']);
-        foreach ($oldImages as $oldImage) {
-            $oldImage = trim($oldImage);
-            if (!in_array($oldImage, $existingImages) && !empty($oldImage) && file_exists($oldImage)) {
-                unlink($oldImage);
-            }
-        }
-    }
-    
-    // Proses upload file baru jika ada
+    // Proses upload multiple files
     if (!empty($_FILES['gambar']['name'][0])) {
         $fileCount = count($_FILES['gambar']['name']);
         
@@ -98,37 +67,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Gabungkan semua path gambar dengan koma
     $gambarString = implode(',', $uploadedFiles);
     
-    // Update ke database jika tidak ada error
+    // Insert ke database jika tidak ada error
     if (empty($error)) {
-        $sql = "UPDATE tugas SET judul=?, deadline_date=?, deadline_time=?, catatan=?, gambar=?, kategori=? WHERE id=?";
+        $sql = "INSERT INTO tugas (judul, deadline_date, deadline_time, catatan, gambar, kategori) 
+                VALUES (?, ?, ?, ?, ?, ?)";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssssssi", $judul, $deadline_date, $deadline_time, $catatan, $gambarString, $kategori, $id);
+        $stmt->bind_param("ssssss", $judul, $deadline_date, $deadline_time, $catatan, $gambarString, $kategori);
         
         if ($stmt->execute()) {
-            $message = "Data berhasil diperbarui!";
-            // Refresh data tugas
-            $tugas['judul'] = $judul;
-            $tugas['deadline_date'] = $deadline_date;
-            $tugas['deadline_time'] = $deadline_time;
-            $tugas['catatan'] = $catatan;
-            $tugas['gambar'] = $gambarString;
-            $tugas['kategori'] = $kategori;
-            
+            $message = "Data berhasil ditambahkan dengan " . count($uploadedFiles) . " gambar!";
             // Redirect setelah 2 detik
             header("refresh:2;url=dashboard.php");
         } else {
-            $error = "Error update data: " . $conn->error;
+            $error = "Error: " . $conn->error;
         }
         
         $stmt->close();
     }
-}
-
-// Parse existing images
-$existingImages = [];
-if (!empty($tugas['gambar'])) {
-    $existingImages = array_map('trim', explode(',', $tugas['gambar']));
 }
 ?>
 <!DOCTYPE html>
@@ -136,9 +92,16 @@ if (!empty($tugas['gambar'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Tugas</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Tambah Tugas Baru</title>
+    <link rel="stylesheet" href="../style.css">
     <style>
+        /* Override untuk memastikan scroll halaman berfungsi */
+        html, body {
+            overflow-y: auto !important;
+            height: auto !important;
+            min-height: 100vh;
+        }
+        
         .form-container {
             background: white;
             padding: 30px;
@@ -175,68 +138,9 @@ if (!empty($tugas['gambar'])) {
         }
         .form-group textarea {
             resize: vertical;
-            min-height: 100px;
-        }
-        
-        /* Existing Images Management */
-        .existing-images {
-            margin-top: 15px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 15px;
-        }
-        
-        .existing-image-item {
-            position: relative;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            overflow: hidden;
-            aspect-ratio: 1;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .existing-image-item:hover {
-            border-color: #667eea;
-        }
-        
-        .existing-image-item.marked-delete {
-            border-color: #f44336;
-            opacity: 0.5;
-        }
-        
-        .existing-image-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .existing-image-item .delete-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(244, 67, 54, 0.8);
-            color: white;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 2em;
-            font-weight: bold;
-        }
-        
-        .existing-image-item.marked-delete .delete-overlay {
-            display: flex;
-        }
-        
-        .existing-image-checkbox {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            width: 20px;
-            height: 20px;
-            z-index: 10;
+            min-height: 120px;
+            line-height: 1.6;
+            white-space: pre-wrap; /* Mempertahankan spasi dan line breaks */
         }
         
         /* Custom File Upload Styling */
@@ -245,7 +149,6 @@ if (!empty($tugas['gambar'])) {
             overflow: hidden;
             display: inline-block;
             width: 100%;
-            margin-top: 15px;
         }
         
         .file-upload-input {
@@ -286,7 +189,7 @@ if (!empty($tugas['gambar'])) {
         
         .file-preview-item {
             position: relative;
-            border: 2px solid #4caf50;
+            border: 2px solid #e0e0e0;
             border-radius: 8px;
             overflow: hidden;
             aspect-ratio: 1;
@@ -325,13 +228,6 @@ if (!empty($tugas['gambar'])) {
             margin-top: 10px;
             color: #666;
             font-size: 0.9em;
-        }
-        
-        .section-title {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
-            display: block;
         }
         
         .btn-submit {
@@ -379,13 +275,21 @@ if (!empty($tugas['gambar'])) {
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        
+        /* Styling untuk textarea hint */
+        .textarea-hint {
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 5px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>✏️ Edit Tugas</h1>
-            <p>Perbarui informasi tugas</p>
+            <h1>➕ Tambah Tugas Baru</h1>
+            <p>Isi form di bawah untuk menambah tugas baru</p>
         </header>
 
         <a href="dashboard.php" class="btn-back">← Kembali ke Dashboard</a>
@@ -402,57 +306,39 @@ if (!empty($tugas['gambar'])) {
             <form method="POST" action="" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="judul">Judul Tugas *</label>
-                    <input type="text" id="judul" name="judul" value="<?= htmlspecialchars($tugas['judul']) ?>" required>
+                    <input type="text" id="judul" name="judul" placeholder="Contoh: Tugas Strukdat" required>
                 </div>
 
                 <div class="form-group">
                     <label for="deadline_date">Tanggal Deadline *</label>
-                    <input type="date" id="deadline_date" name="deadline_date" value="<?= $tugas['deadline_date'] ?>" required>
+                    <input type="date" id="deadline_date" name="deadline_date" required>
                 </div>
 
                 <div class="form-group">
                     <label for="deadline_time">Waktu Deadline *</label>
-                    <input type="time" id="deadline_time" name="deadline_time" value="<?= $tugas['deadline_time'] ?>" required>
+                    <input type="time" id="deadline_time" name="deadline_time" required>
                 </div>
 
                 <div class="form-group">
                     <label for="kategori">Kategori *</label>
                     <select id="kategori" name="kategori" required>
-                        <option value="deadline" <?= $tugas['kategori'] == 'deadline' ? 'selected' : '' ?>>Deadline Pasti</option>
-                        <option value="flexible" <?= $tugas['kategori'] == 'flexible' ? 'selected' : '' ?>>Kapan-Kapan</option>
+                        <option value="deadline">Deadline Pasti</option>
+                        <option value="flexible">Kapan-Kapan</option>
                     </select>
                 </div>
 
                 <div class="form-group">
                     <label for="catatan">Catatan (Opsional)</label>
-                    <textarea id="catatan" name="catatan"><?= htmlspecialchars($tugas['catatan']) ?></textarea>
+                    <textarea id="catatan" name="catatan"></textarea>
                 </div>
 
                 <div class="form-group">
-                    <label>Kelola Gambar</label>
-                    
-                    <?php if (!empty($existingImages) && $existingImages[0] != ''): ?>
-                        <span class="section-title">📷 Gambar Saat Ini (Klik untuk hapus):</span>
-                        <div class="existing-images">
-                            <?php foreach ($existingImages as $index => $image): ?>
-                                <?php if (!empty($image)): ?>
-                                <div class="existing-image-item" onclick="toggleImageDelete(this, '<?= htmlspecialchars($image) ?>')">
-                                    <input type="checkbox" name="existing_images[]" value="<?= htmlspecialchars($image) ?>" class="existing-image-checkbox" checked onclick="event.stopPropagation()">
-                                    <img src="<?= htmlspecialchars($image) ?>" alt="Image <?= $index + 1 ?>">
-                                    <div class="delete-overlay">🗑️</div>
-                                </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
-                        <small style="color: #666; display: block; margin-top: 8px;">💡 Uncheck gambar untuk menghapus</small>
-                    <?php endif; ?>
-                    
-                    <span class="section-title" style="margin-top: 20px;">➕ Tambah Gambar Baru:</span>
+                    <label>Upload Gambar (Opsional - Multiple)</label>
                     <div class="file-upload-wrapper">
                         <input type="file" id="gambar" name="gambar[]" class="file-upload-input" accept="image/*" multiple onchange="previewFiles(this)">
                         <label for="gambar" class="file-upload-label">
-                            <span class="file-upload-icon">📁</span>
-                            <span>Pilih Gambar Tambahan (Opsional)</span>
+                            <span class="file-upload-icon">📎</span>
+                            <span>Pilih Gambar (Bisa lebih dari 1)</span>
                         </label>
                     </div>
                     <div id="filePreview" class="file-preview"></div>
@@ -460,28 +346,17 @@ if (!empty($tugas['gambar'])) {
                     <small style="color: #666; display: block; margin-top: 8px;">Format: JPG, JPEG, PNG, GIF (Maksimal 5MB per file)</small>
                 </div>
 
-                <button type="submit" class="btn-submit">💾 Perbarui Tugas</button>
+                <button type="submit" class="btn-submit">💾 Simpan Tugas</button>
             </form>
         </div>
 
         <footer>
-            <p>Admin Mode - Edit Tugas</p>
+            <p>Admin Mode - Tambah Tugas Baru</p>
         </footer>
     </div>
     
     <script>
         let selectedFiles = [];
-        
-        function toggleImageDelete(element, imagePath) {
-            const checkbox = element.querySelector('.existing-image-checkbox');
-            checkbox.checked = !checkbox.checked;
-            
-            if (checkbox.checked) {
-                element.classList.remove('marked-delete');
-            } else {
-                element.classList.add('marked-delete');
-            }
-        }
         
         function previewFiles(input) {
             const preview = document.getElementById('filePreview');
@@ -491,7 +366,7 @@ if (!empty($tugas['gambar'])) {
             preview.innerHTML = '';
             
             if (selectedFiles.length > 0) {
-                fileCount.textContent = `${selectedFiles.length} gambar baru akan ditambahkan`;
+                fileCount.textContent = `${selectedFiles.length} file dipilih`;
                 
                 selectedFiles.forEach((file, index) => {
                     const reader = new FileReader();
@@ -524,6 +399,8 @@ if (!empty($tugas['gambar'])) {
             // Re-render preview
             previewFiles(document.getElementById('gambar'));
         }
+        
+
     </script>
 </body>
 </html>

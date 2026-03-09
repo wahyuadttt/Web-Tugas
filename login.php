@@ -3,7 +3,7 @@ session_start();
 
 // Jika sudah login, redirect ke dashboard
 if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
-    header('Location: dashboard.php');
+    header('Location: admin/dashboard.php');
     exit;
 }
 
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['admin_id'] = $admin['id'];
                 $_SESSION['admin_username'] = $admin['username'];
                 
-                header('Location: dashboard.php');
+                header('Location: admin/dashboard.php');
                 exit;
             } else {
                 $error = '❌ Password salah! Silakan coba lagi.';

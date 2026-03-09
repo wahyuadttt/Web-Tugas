@@ -7,7 +7,7 @@ if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== tru
     exit;
 }
 
-include 'koneksi.php';
+include '../koneksi.php';
 
 // Ambil semua data tugas
 $sql = "SELECT * FROM tugas ORDER BY deadline_date ASC, deadline_time ASC";
@@ -36,13 +36,15 @@ $selectedDate = isset($_GET['date']) ? $_GET['date'] : $currentDate->format('Y-m
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - Daftar Tugas B 2024</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
     <div class="container-new">
         <header class="header-new">
-            <h1>Daftar Tugas B 24</h1>
+            <a href="dashboard.php" class="nav-left">Tugas</a>
+            <h1 class="header-title">Daftar Tugas B 24</h1>
+            <a href="dashboard-info.php" class="nav-right">Info</a>
         </header>
 
         <div class="main-layout">
@@ -162,7 +164,7 @@ $selectedDate = isset($_GET['date']) ? $_GET['date'] : $currentDate->format('Y-m
                                 </a>
                             </div>
                         </div>
-                        <p class="task-description"><?= htmlspecialchars($tugas['catatan'] ?? 'Master the language powering the modern web.') ?></p>
+                        <p class="task-description"><?= nl2br(htmlspecialchars($tugas['catatan'] ?? '...')) ?></p>
                         <div class="task-meta">
                             <span class="task-date-label">
                                 <?php 
@@ -194,7 +196,7 @@ $selectedDate = isset($_GET['date']) ? $_GET['date'] : $currentDate->format('Y-m
                                 </a>
                             </div>
                         </div>
-                        <p class="task-description"><?= htmlspecialchars($tugas['catatan'] ?? 'Tugas fleksibel') ?></p>
+                        <p class="task-description"><?= nl2br(htmlspecialchars($tugas['catatan'] ?? 'Tugas fleksibel')) ?></p>
                         <div class="task-meta">
                             <span class="task-date-label">Flexible</span>
                         </div>
